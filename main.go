@@ -113,7 +113,8 @@ func bar(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "No session for user")
 		return
 	}
-	fmt.Fprintln(w, "Welcome back, ", u)
+	user := dbUsers[u]
+	fmt.Fprintln(w, "Welcome back, ", user.Username)
 }
 
 func main() {
