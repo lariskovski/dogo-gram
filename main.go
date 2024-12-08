@@ -46,6 +46,12 @@ func signup(w http.ResponseWriter, r *http.Request) {
 			Email:    r.FormValue("email"),
 			Password: r.FormValue("password"),
 		}
+
+		if _, ok := dbUsers[data.Username]; ok {
+			log.Warn("Username already exists")
+			http.Error(w, "Username already exists", http.StatusConflict)
+			return
+		}
 	
 		dbUsers[data.Username] = data
 		log.WithFields(logrus.Fields{
