@@ -151,8 +151,11 @@ func alreadyLoggedIn(r *http.Request) bool {
 }
 
 func main() {
-	http.HandleFunc("/", signup)
-	http.HandleFunc("/login", login)
+	u1 := User{"teste", "", "teste"}
+	dbUsers["teste"] = u1
+
+	http.HandleFunc("/", login)
+	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/bar", bar)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
