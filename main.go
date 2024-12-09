@@ -27,50 +27,38 @@ type User struct {
 var dbUsers = map[string]User{}       // user ID, user
 var dbSessions = map[string]string{}  // session ID, user ID
 
-func signup(w http.ResponseWriter, r *http.Request) {
-	if alreadyLoggedIn(r) {
-		http.Redirect(w, r, "/bar", http.StatusSeeOther)
+
+func main() {
+	u1 := User{"teste", "", "teste"}
+	dbUsers["teste"] = u1
+
+	http.HandleFunc("/", bar)
+	http.HandleFunc("/login", login)
+	http.HandleFunc("/signup", signup)
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func bar(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("session")
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	if r.Method == http.MethodPost {
-		err := r.ParseForm()
-		if err != nil {
-			log.WithError(err).Error("Unable to parse form")
-			http.Error(w, "Unable to parse form", http.StatusBadRequest)
-			return
-		}
-	
-		data := User{
-			Username: r.FormValue("username"),
-			Email:    r.FormValue("email"),
-			Password: r.FormValue("password"),
-		}
-
-		if _, ok := dbUsers[data.Username]; ok {
-			log.Warn("Username already exists")
-			http.Error(w, "Username already exists", http.StatusConflict)
-			return
-		}
-	
-		dbUsers[data.Username] = data
-		log.WithFields(logrus.Fields{
-			"username": data.Username,
-			"email":    data.Email,
-		}).Info("New user signed up")
+	username, ok := dbSessions[c.Value]
+	if !ok {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
 	}
 
-	err := tpl.ExecuteTemplate(w, "signup.gohtml", nil)
-	if err != nil {
-		log.WithError(err).Error("Unable to load template")
-		http.Error(w, "Unable to load template", http.StatusInternalServerError)
-	}
+	user := dbUsers[username]
+	log.WithField("username", user.Username).Info("User accessed bar")
+	fmt.Fprintln(w, "Welcome back,", user.Username)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
 	if alreadyLoggedIn(r) {
-		http.Redirect(w, r, "/bar", http.StatusSeeOther)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	
@@ -123,22 +111,45 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func bar(w http.ResponseWriter, r *http.Request) {
-	c, err := r.Cookie("session")
+func signup(w http.ResponseWriter, r *http.Request) {
+	if alreadyLoggedIn(r) {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		err := r.ParseForm()
+		if err != nil {
+			log.WithError(err).Error("Unable to parse form")
+			http.Error(w, "Unable to parse form", http.StatusBadRequest)
+			return
+		}
+	
+		data := User{
+			Username: r.FormValue("username"),
+			Email:    r.FormValue("email"),
+			Password: r.FormValue("password"),
+		}
+
+		if _, ok := dbUsers[data.Username]; ok {
+			log.Warn("Username already exists")
+			http.Error(w, "Username already exists", http.StatusConflict)
+			return
+		}
+	
+		dbUsers[data.Username] = data
+		log.WithFields(logrus.Fields{
+			"username": data.Username,
+			"email":    data.Email,
+		}).Info("New user signed up")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	}
+
+	err := tpl.ExecuteTemplate(w, "signup.gohtml", nil)
 	if err != nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
+		log.WithError(err).Error("Unable to load template")
+		http.Error(w, "Unable to load template", http.StatusInternalServerError)
 	}
-
-	username, ok := dbSessions[c.Value]
-	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	user := dbUsers[username]
-	log.WithField("username", user.Username).Info("User accessed bar")
-	fmt.Fprintln(w, "Welcome back,", user.Username)
 }
 
 func alreadyLoggedIn(r *http.Request) bool {
@@ -156,12 +167,3 @@ func alreadyLoggedIn(r *http.Request) bool {
 	return ok
 }
 
-func main() {
-	u1 := User{"teste", "", "teste"}
-	dbUsers["teste"] = u1
-
-	http.HandleFunc("/", login)
-	http.HandleFunc("/signup", signup)
-	http.HandleFunc("/bar", bar)
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
