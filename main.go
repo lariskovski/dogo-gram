@@ -5,7 +5,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,8 +28,8 @@ var dbUsers = map[string]User{}      // user ID, user
 var dbSessions = map[string]string{} // session ID, user ID
 
 func main() {
-	u1 := User{"teste", "", "teste"}
-	dbUsers["teste"] = u1
+	testUser := User{"teste", "", "teste"}
+	dbUsers["teste"] = testUser
 
 	http.HandleFunc("/", index)
 	http.HandleFunc("/login", login)
@@ -45,8 +45,8 @@ func index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// If user is logged in, render index page
-	log.WithField("username", user.Username).Info("User accessed index")
-	fmt.Fprintln(w, "Welcome back, ", user.Username)
+	log.WithField("username", user.Username).Info("User accessed the index page")
+	fmt.Fprintln(w, "Welcome back,", user.Username)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +69,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// If request is POST, parse form and authenticate user
 	formUser, err := parseForm(r)
 	if err != nil {
+		fmt.Printf("Error: %v", err)
 		http.Error(w, "Unable to parse form", http.StatusBadRequest)
 		return
 	}
@@ -76,13 +77,13 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// Check if user exists and password is correct
 	user, ok := dbUsers[formUser.Username]
 	if !ok || user.Password != formUser.Password {
-		log.Warn("Invalid login attempt")
+		log.WithField("username", formUser.Username).Warn("Invalid login attempt")
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
 
 	// Create session cookie
-	id := uuid.NewV4()
+	id := uuid.New()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    id.String(),
@@ -121,7 +122,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	// Check if username already exists
 	if _, ok := dbUsers[formUser.Username]; ok {
-		log.Warn("Username already exists")
+		log.WithField("username", formUser.Username).Warn("Username already exists")
 		http.Error(w, "Username already exists", http.StatusConflict)
 		return
 	}
@@ -140,7 +141,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 }
 
 // alreadyLoggedIn checks if the user is already logged in by checking the session cookie.
-// If the user is logged in, it returns the User struct. If the user is not logged in, it returns an error.
+// If the user is logged in, it returns the User struct. If the session is invalid or the user is not found, it returns an error.
 func alreadyLoggedIn(r *http.Request) (User, error) {
 	// Check if session cookie exists
 	c, err := r.Cookie("session")
@@ -165,6 +166,7 @@ func alreadyLoggedIn(r *http.Request) (User, error) {
 }
 
 // parseForm parses the form data from the HTTP request and returns a User struct.
+// It returns an error if any of the form fields are empty.
 // It expects the form to contain "username", "email", and "password" fields.
 // If the form cannot be parsed, it returns an error.
 func parseForm(r *http.Request) (User, error) {
@@ -174,7 +176,7 @@ func parseForm(r *http.Request) (User, error) {
 	}
 
 	// Check if form values are not empty
-	if r.FormValue("username") == "" || r.FormValue("email") == "" || r.FormValue("password") == "" {
+	if r.FormValue("username") == "" || r.FormValue("password") == "" {
 		return User{}, fmt.Errorf("all fields are required")
 	}
 
