@@ -7,12 +7,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
 	Username string
 	Email    string
-	Password string
+	Password []byte
 }
 
 var tpl *template.Template
@@ -28,7 +29,11 @@ var dbUsers = map[string]User{}      // user ID, user
 var dbSessions = map[string]string{} // session ID, user ID
 
 func main() {
-	testUser := User{"teste", "", "teste"}
+	pwd, err := bcrypt.GenerateFromPassword([]byte("teste"), bcrypt.DefaultCost)
+	if err != nil {
+		log.WithError(err).Fatal("Unable to generate password hash")
+	}
+	testUser := User{"teste", "", pwd}
 	dbUsers["teste"] = testUser
 
 	http.HandleFunc("/", index)
@@ -76,7 +81,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	// Check if user exists and password is correct
 	user, ok := dbUsers[formUser.Username]
-	if !ok || user.Password != formUser.Password {
+	if !ok || bcrypt.CompareHashAndPassword(user.Password, []byte(r.FormValue("password"))) != nil {
 		log.WithField("username", formUser.Username).Warn("Invalid login attempt")
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
@@ -137,7 +142,6 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to login
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
-
 }
 
 // alreadyLoggedIn checks if the user is already logged in by checking the session cookie.
@@ -180,11 +184,15 @@ func parseForm(r *http.Request) (User, error) {
 		return User{}, fmt.Errorf("all fields are required")
 	}
 
+	// Hash password
+	pwd, err := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), bcrypt.DefaultCost)
+	if err != nil {
+		return User{}, fmt.Errorf("unable to hash password")
+	}
 	formUser := User{
 		Username: r.FormValue("username"),
 		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
+		Password: pwd,
 	}
-
 	return formUser, nil
 }
