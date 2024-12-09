@@ -14,6 +14,7 @@ type User struct {
 	Username string
 	Email    string
 	Password []byte
+	Role	 string
 }
 
 var tpl *template.Template
@@ -33,10 +34,11 @@ func main() {
 	if err != nil {
 		log.WithError(err).Fatal("Unable to generate password hash")
 	}
-	testUser := User{"teste", "", pwd}
-	dbUsers["teste"] = testUser
+	dbUsers["teste"] = User{"teste", "", pwd, "user"}
+	dbUsers["admin"] = User{"admin", "", pwd, "admin"}
 
 	http.HandleFunc("/", index)
+	http.HandleFunc("/admin", admin)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/logout", logout)
@@ -58,6 +60,23 @@ func index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to load template", http.StatusInternalServerError)
 	}
 
+}
+
+func admin(w http.ResponseWriter, r *http.Request) {
+	// If user is not logged in, redirect to login
+	user, err := alreadyLoggedIn(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	// If user is not admin, redirect to index
+	if user.Role != "admin" {
+		fmt.Fprint(w, "You are not authorized to access this page")
+		return
+	}
+	// If user is logged in and is admin, render admin page
+	log.WithField("username", user.Username).Info("Admin accessed the admin page")
+	fmt.Fprintf(w, "Welcome, %s %s!", user.Role, user.Username)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
