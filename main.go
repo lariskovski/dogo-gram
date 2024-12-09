@@ -51,7 +51,12 @@ func index(w http.ResponseWriter, r *http.Request) {
 	}
 	// If user is logged in, render index page
 	log.WithField("username", user.Username).Info("User accessed the index page")
-	fmt.Fprintln(w, "Welcome back,", user.Username)
+	err = tpl.ExecuteTemplate(w, "index.gohtml", user)
+	if err != nil {
+		log.WithError(err).Error("Unable to load template")
+		http.Error(w, "Unable to load template", http.StatusInternalServerError)
+	}
+
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
