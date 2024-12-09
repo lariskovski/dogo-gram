@@ -39,6 +39,7 @@ func main() {
 	http.HandleFunc("/", index)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/signup", signup)
+	http.HandleFunc("/logout", logout)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
@@ -145,6 +146,25 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		"email":    formUser.Email,
 	}).Info("New user signed up")
 
+	// Redirect to login
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+func logout(w http.ResponseWriter, r *http.Request) {
+	// Check if user is logged in
+	user, err := alreadyLoggedIn(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	// Delete session cookie
+	c, _ := r.Cookie("session")
+	delete(dbSessions, c.Value)
+	c.MaxAge = -1
+	http.SetCookie(w, c)
+
+	log.WithField("username", user.Username).Info("User logged out")
 	// Redirect to login
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
