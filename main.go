@@ -18,6 +18,13 @@ type User struct {
 	Email    string
 	Password []byte
 	Role	 string
+	Images   []*Image
+}
+
+type Image struct {
+	Filename string
+	Owner    *User
+	CreatedAt string
 }
 
 var tpl *template.Template
@@ -31,21 +38,27 @@ func init() {
 
 var dbUsers = map[string]User{}      // user ID, user
 var dbSessions = map[string]string{} // session ID, user ID
+var dbImages = map[string]Image{}    // image ID, image
 
 func main() {
 	pwd, err := bcrypt.GenerateFromPassword([]byte("teste"), bcrypt.DefaultCost)
 	if err != nil {
 		log.WithError(err).Fatal("Unable to generate password hash")
 	}
-	dbUsers["teste"] = User{"teste", "", pwd, "user"}
-	dbUsers["admin"] = User{"admin", "", pwd, "admin"}
+	dbUsers["teste"] = User{"teste", "", pwd, "user", nil}
+	dbUsers["admin"] = User{"admin", "", pwd, "admin", nil}
 
+	
 	http.HandleFunc("/", index)
 	http.HandleFunc("/admin", admin)
 	http.HandleFunc("/upload", upload)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/logout", logout)
+	
+	http.Handle("/favicon.ico", http.NotFoundHandler())
+	http.Handle("/images/", http.StripPrefix("/images", http.FileServer(http.Dir("./images"))))
+
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
@@ -56,6 +69,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
+	fmt.Println(user.Images)
 	// If user is logged in, render index page
 	log.WithField("username", user.Username).Info("User accessed the index page")
 	err = tpl.ExecuteTemplate(w, "index.gohtml", user)
@@ -63,12 +77,11 @@ func index(w http.ResponseWriter, r *http.Request) {
 		log.WithError(err).Error("Unable to load template")
 		http.Error(w, "Unable to load template", http.StatusInternalServerError)
 	}
-
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
 	// If user is not logged in, redirect to login
-	_, err := alreadyLoggedIn(r)
+	user, err := alreadyLoggedIn(r)
 	if err != nil {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -103,7 +116,16 @@ func upload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		log.WithField("filename", h.Filename).Info("File uploaded")
+
+		// store in db
+		dbImages[h.Filename] = Image{h.Filename, &user, h.Header.Get("Content-Type")}
+
+		img := dbImages[h.Filename]
+		user.Images = append(user.Images, &img)
+		dbUsers[user.Username] = user // Update the user in the dbUsers map
+
+		log.WithFields(logrus.Fields{ "filename": h.Filename, "username": user.Username }).Info("File uploaded")
+		fmt.Println(user.Images)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }

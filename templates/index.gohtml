@@ -16,5 +16,12 @@
         <input type="file" name="file">
         <input type="submit" value="Upload">
     </form>
+
+    <div>
+        {{range .Images}}
+        <img src="/images/{{.Filename}}" alt="Image" style="max-width: 100%; max-height: 500px;">
+        <br>
+        {{end}}
+    </div>
 </body>
 </html>
