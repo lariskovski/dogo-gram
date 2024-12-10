@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -39,6 +42,7 @@ func main() {
 
 	http.HandleFunc("/", index)
 	http.HandleFunc("/admin", admin)
+	http.HandleFunc("/upload", upload)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/signup", signup)
 	http.HandleFunc("/logout", logout)
@@ -60,6 +64,48 @@ func index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unable to load template", http.StatusInternalServerError)
 	}
 
+}
+
+func upload(w http.ResponseWriter, r *http.Request) {
+	// If user is not logged in, redirect to login
+	_, err := alreadyLoggedIn(r)
+	if err != nil {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		// save uploaded file
+		f, h, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "Unable to upload file", http.StatusBadRequest)
+			return
+		}
+		defer f.Close()
+
+		// read
+		bs, err := io.ReadAll(f)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// store on server
+		dst, err := os.Create(filepath.Join("./images/", h.Filename))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+
+		_, err = dst.Write(bs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		log.WithField("filename", h.Filename).Info("File uploaded")
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
 }
 
 func admin(w http.ResponseWriter, r *http.Request) {
